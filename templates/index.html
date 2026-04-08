@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Random Fun Fact</title>
+</head>
+<body>
+    <h1>Fun Fact of the Day</h1>
+    {% if error %}
+        <p style="color: red;">Error: {{ error }}</p>
+    {% elif fact %}
+        <p>{{ fact.text }}</p>
+        <p><small>Language: {{ fact.lang_name }} ({{ fact.lang_code }})</small></p>
+        <p><small>Retrieved: {{ fact.retrieved_at }}</small></p>
+    {% else %}
+        <p>No fact available.</p>
+    {% endif %}
+    <a href="{{ url_for('new_fact') }}">Get another fact</a>
+</body>
+</html>
