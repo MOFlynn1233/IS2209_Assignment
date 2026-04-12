@@ -1,7 +1,6 @@
 import os
 import requests
 import psycopg
-import uuid
 from flask import Flask, jsonify, render_template, redirect, url_for
 from dotenv import load_dotenv
 
