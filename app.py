@@ -49,8 +49,7 @@ def fetch_and_store_fact():
     }
 
     params = {
-        "lang": "en",
-        "uuid": str(uuid.uuid4())
+        "lang": "en"
     }
 
     try:
@@ -63,10 +62,6 @@ def fetch_and_store_fact():
 
         data = response.json()
 
-        # Debugging safety
-        if response.status_code != 200:
-            return {"error": f"API error: {data}"}
-
         fact_data = {
             "uuid": data.get("uuid"),
             "lang_code": data.get("lang_code"),
@@ -77,7 +72,6 @@ def fetch_and_store_fact():
         if not fact_data["uuid"]:
             return {"error": f"Invalid response: {data}"}
 
-        # Store in database
         with get_db_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
@@ -144,8 +138,21 @@ def index():
 
 @app.route("/new-fact")
 def new_fact():
-    fetch_and_store_fact()
-    return redirect(url_for("index"))
+
+    fact = fetch_and_store_fact()
+
+    if "error" in fact:
+        return render_template(
+            "index.html",
+            error=fact["error"],
+            fact=None
+        )
+
+    return render_template(
+        "index.html",
+        fact=fact,
+        error=None
+    )
 
 @app.route("/fact")
 def fact_json():
@@ -170,9 +177,9 @@ def health():
             "X-RapidAPI-Host": RAPIDAPI_HOST
         }
 
-        params = {"lang": "en",
-                      "uuid": str(uuid.uuid4())
-}
+        params = {
+            "lang": "en"
+        }
 
         requests.get(
             FUN_FACTS_URL,
