@@ -1,6 +1,7 @@
 import os
 import requests
 import psycopg
+import time
 from flask import Flask, jsonify, render_template, redirect, url_for
 from dotenv import load_dotenv
 
@@ -20,24 +21,38 @@ FUN_FACTS_URL = (
 def get_db_connection():
     return psycopg.connect(DATABASE_URL, sslmode="require")
 
+
 def init_db():
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                CREATE TABLE IF NOT EXISTS facts (
-                    id SERIAL PRIMARY KEY,
-                    uuid VARCHAR(255) UNIQUE NOT NULL,
-                    lang_code VARCHAR(10),
-                    lang_name VARCHAR(50),
-                    text TEXT NOT NULL,
-                    retrieved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
+                        CREATE TABLE IF NOT EXISTS facts
+                        (
+                            id
+                            SERIAL
+                            PRIMARY
+                            KEY,
+                            uuid
+                            VARCHAR
+                        (
+                            255
+                        ) UNIQUE NOT NULL,
+                            lang_code VARCHAR
+                        (
+                            10
+                        ),
+                            lang_name VARCHAR
+                        (
+                            50
+                        ),
+                            text TEXT NOT NULL,
+                            retrieved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            );
+                        """)
         conn.commit()
 
 
-def fetch_and_store_fact():
-
+def fetch_and_store_fact(retries=3):
     headers = {
         "X-RapidAPI-Key": RAPIDAPI_KEY,
         "X-RapidAPI-Host": RAPIDAPI_HOST
@@ -47,54 +62,63 @@ def fetch_and_store_fact():
         "lang": "en"
     }
 
-    try:
-        response = requests.get(
-            FUN_FACTS_URL,
-            headers=headers,
-            params=params,
-            timeout=10
-        )
+    for attempt in range(retries):
+        try:
+            response = requests.get(
+                FUN_FACTS_URL,
+                headers=headers,
+                params=params,
+                timeout=10
+            )
 
-        data = response.json()
+            data = response.json()
 
-        fact_data = {
-            "uuid": data.get("uuid"),
-            "lang_code": data.get("lang_code"),
-            "lang_name": data.get("lang_name"),
-            "text": data.get("text")
-        }
+            # Check for rate limiting or error responses
+            if "error" in data or "message" in data:
+                if attempt < retries - 1:
+                    time.sleep(2 ** attempt)  # Exponential backoff
+                    continue
+                return {"error": f"Invalid response: {data}"}
 
-        if not fact_data["uuid"]:
-            return {"error": f"Invalid response: {data}"}
+            fact_data = {
+                "uuid": data.get("uuid"),
+                "lang_code": data.get("lang_code"),
+                "lang_name": data.get("lang_name"),
+                "text": data.get("text")
+            }
 
-        with get_db_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    INSERT INTO facts (uuid, lang_code, lang_name, text)
-                    VALUES (%(uuid)s, %(lang_code)s, %(lang_name)s, %(text)s)
-                    ON CONFLICT (uuid) DO NOTHING;
-                """, fact_data)
+            if not fact_data["uuid"] or not fact_data["text"]:
+                return {"error": f"Invalid response: {data}"}
 
-            conn.commit()
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                                INSERT INTO facts (uuid, lang_code, lang_name, text)
+                                VALUES (%(uuid)s, %(lang_code)s, %(lang_name)s, %(text)s) ON CONFLICT (uuid) DO NOTHING;
+                                """, fact_data)
 
-        return fact_data
+                conn.commit()
 
-    except requests.RequestException as e:
-        return {"error": str(e)}
+            return fact_data
 
-    except Exception as e:
-        return {"error": f"Database or parsing error: {str(e)}"}
+        except requests.RequestException as e:
+            if attempt < retries - 1:
+                time.sleep(2 ** attempt)
+                continue
+            return {"error": str(e)}
+
+        except Exception as e:
+            return {"error": f"Database or parsing error: {str(e)}"}
 
 
 def get_latest_fact():
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT uuid, lang_code, lang_name, text, retrieved_at
-                FROM facts
-                ORDER BY retrieved_at DESC
-                LIMIT 1;
-            """)
+                        SELECT uuid, lang_code, lang_name, text, retrieved_at
+                        FROM facts
+                        ORDER BY retrieved_at DESC LIMIT 1;
+                        """)
 
             row = cur.fetchone()
 
@@ -112,7 +136,6 @@ def get_latest_fact():
 
 @app.route("/")
 def index():
-
     fact = get_latest_fact()
 
     if not fact:
@@ -131,24 +154,29 @@ def index():
         error=None
     )
 
+
 @app.route("/new-fact")
 def new_fact():
     fetch_and_store_fact()
     return redirect(url_for("index"))
 
+
 @app.route("/fact")
 def fact_json():
-
     fact = get_latest_fact()
 
     if not fact:
         fact = fetch_and_store_fact()
 
+    # Return error if still None
+    if fact and "error" in fact:
+        return jsonify(fact), 500
+
     return jsonify(fact)
+
 
 @app.route("/health")
 def health():
-
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
@@ -170,13 +198,13 @@ def health():
             timeout=5
         )
 
-        return {"status": "ok"}
+        return jsonify({"status": "ok"}), 200
 
     except Exception as e:
-        return {
+        return jsonify({
             "status": "unhealthy",
             "error": str(e)
-        }, 500
+        }), 500
 
 
 if __name__ == "__main__":
