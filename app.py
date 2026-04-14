@@ -137,21 +137,8 @@ def index():
 
 @app.route("/new-fact")
 def new_fact():
-
-    fact = fetch_and_store_fact()
-
-    if "error" in fact:
-        return render_template(
-            "index.html",
-            error=fact["error"],
-            fact=None
-        )
-
-    return render_template(
-        "index.html",
-        fact=fact,
-        error=None
-    )
+    fetch_and_store_fact()
+    return redirect(url_for("index"))
 
 @app.route("/fact")
 def fact_json():
