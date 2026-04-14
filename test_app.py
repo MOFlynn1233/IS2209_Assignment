@@ -7,7 +7,6 @@ def client():
     with app.test_client() as client:
         yield client
 
-
 #Test 1 - Test that homepage loads
 def test_homepage_loads(client):
     response = client.get("/")
