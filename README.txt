@@ -29,4 +29,4 @@ Demo Steps:
 1. Run `python app.py`
 2. You should see a fun fact
 3. Click the "get another fact" button to fetch a new fact from the API and store it in the database
-4. Visit /health to verify the dependencies are up and running
+4. Visit /health to verify the dependencies are up and runningcan y
