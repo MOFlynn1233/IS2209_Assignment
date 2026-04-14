@@ -5,7 +5,6 @@ from flask import Flask, jsonify, render_template, redirect, url_for
 from dotenv import load_dotenv
 
 load_dotenv()
-
 app = Flask(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
