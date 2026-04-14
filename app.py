@@ -36,9 +36,6 @@ def init_db():
             """)
         conn.commit()
 
-with app.app_context():
-    init_db()
-
 
 def fetch_and_store_fact():
 
